@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.2
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlruns
+    volumes:
+      - mlflow_data:/mlruns
+    networks:
+      - mlops-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - mlops-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-network
+
+  fastapi-app:
+    build: .
+    container_name: fastapi-app
+    ports:
+      - "8005:8005"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - S3_BUCKET=${S3_BUCKET:-loan-predictions}
+      - FOLDER=${FOLDER:-predictions}
+      - AWS_REGION=${AWS_REGION:-us-east-2}
+    depends_on:
+      - mlflow
+    networks:
+      - mlops-network
+    restart: unless-stopped
+
+volumes:
+  mlflow_data:
+  grafana_data:
+
+networks:
+  mlops-network:
+    driver: bridge
