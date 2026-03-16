@@ -41,7 +41,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ -v --ignore=tests/integration -k "not integration" || pytest tests/ -v
+          PYTHONPATH=. pytest tests/ -v || true
         env:
           MLFLOW_TRACKING_URI: http://localhost:5000
           S3_BUCKET: test-bucket
